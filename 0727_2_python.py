@@ -6,3 +6,7 @@ str = "Python String"
 str = "Python String"
 new_str = 'J' + str[1:]
 print(new_str)
+
+#Print Numbers
+count = 10_000_000_000
+print(count)
