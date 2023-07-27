@@ -52,3 +52,16 @@ print(greeting)
 str = "Python String"
 print(str[0]) # P
 print(str[1]) # y
+
+str = "Python String"
+print(str[-1])  # g
+print(str[-2])  # n
+
+#Getting length of String
+str = "Python String"
+str_len = len(str)
+print(str_len)
+
+#Slicing Strings
+str = "Python String"
+print(str[0:2])
