@@ -1,0 +1,54 @@
+import pandas as pd
+import plotly.express as px
+from datetime import datetime
+import plotly.io as pio
+
+# Step 1: Read data from Excel
+file_path = "tasks_data.xlsx"  # Update with your file path
+df = pd.read_excel(file_path)
+
+# Convert dates to datetime
+df["Start Date"] = pd.to_datetime(df["Start Date"])
+df["End Date"] = pd.to_datetime(df["End Date"])
+
+# Calculate remaining days for in-progress tasks
+today = datetime.now()
+df["Days Pending"] = (df["End Date"] - today).dt.days
+df["Days Pending"] = df["Days Pending"].apply(lambda x: max(x, 0))
+
+# Add progress column (optional, customize as needed)
+df["Progress"] = df["Status"].apply(
+    lambda x: "100%" if x == "Completed" else "50%" if x == "In-Progress" else "0%"
+)
+
+# Step 2: Create Gantt Chart
+fig = px.timeline(
+    df,
+    x_start="Start Date",
+    x_end="End Date",
+    y="Milestone",
+    color="Status",
+    text="Task",
+    title="Project Gantt Chart",
+    labels={"Days Pending": "Days Pending"}
+)
+
+# Step 3: Highlight Milestones and Add Annotations
+fig.update_traces(marker=dict(line=dict(width=2, color="DarkSlateGrey")))
+
+# Custom layout for readability
+fig.update_layout(
+    xaxis_title="Timeline",
+    yaxis_title="Milestones",
+    legend_title="Status",
+    showlegend=True,
+    title_x=0.5,
+    margin=dict(l=20, r=20, t=50, b=20),
+    hoverlabel=dict(font_size=12, font_family="Arial")
+)
+
+# Step 4: Save as an interactive HTML file
+output_file = "gantt_chart.html"
+pio.write_html(fig, file=output_file, auto_open=False)
+
+print(f"Gantt chart saved to {output_file}")
