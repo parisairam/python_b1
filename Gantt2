@@ -107,7 +107,6 @@ milestone_chart = create_gantt_chart(prepare_milestone_level(), "Milestone-Level
 task_chart_html = task_chart.to_html(full_html=False, include_plotlyjs='cdn')
 milestone_chart_html = milestone_chart.to_html(full_html=False, include_plotlyjs=False)
 
-# Combine charts into a single HTML file
 with open("combined_gantt_chart.html", "w") as f:
     f.write(f"""
     <!DOCTYPE html>
@@ -146,15 +145,16 @@ with open("combined_gantt_chart.html", "w") as f:
                 display: none;
                 width: 100%;
                 height: calc(100vh - 60px); /* Full screen minus tab height */
+                overflow-y: auto; /* Enable scrolling for large charts */
                 padding: 0;
-                overflow: hidden;
             }}
             .tabcontent.active {{
                 display: block;
             }}
             .chart-container {{
-                width: 100%;
-                height: 100%;
+                width: 95vw; /* Make the chart take 95% of the viewport width */
+                height: 90vh; /* Make the chart take 90% of the viewport height */
+                margin: auto; /* Center the chart horizontally */
             }}
         </style>
     </head>
@@ -199,3 +199,4 @@ with open("combined_gantt_chart.html", "w") as f:
     </body>
     </html>
     """)
+
