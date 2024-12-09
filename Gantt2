@@ -1,12 +1,14 @@
 import pandas as pd
 import plotly.figure_factory as ff
 from datetime import datetime
-
 import os
+
 # Load the data from Excel file
 current_directory = os.path.dirname(os.path.abspath(__file__))
 file_path = os.path.join(current_directory, "tasks_data 1.xlsx")
 tasks_data = pd.read_excel(file_path)
+
+# Preprocess the data
 tasks_data['Milestone'] = tasks_data['Milestone'].fillna(method='ffill')
 tasks_data['Status'] = tasks_data['Status'].fillna('Not Started')
 tasks_data['Milestone'] = pd.Categorical(tasks_data['Milestone'],
@@ -35,8 +37,7 @@ def prepare_task_level():
             "Task": f"{row['Milestone']} - {row['Task']}",
             "Start": row['Start Date'],
             "Finish": row['End Date'],
-            "Resource": row['Highlight'],
-            "Color": status_colors[row['Highlight']]
+            "Resource": row['Highlight']
         }
         for _, row in tasks_data.iterrows()
     ]
@@ -57,11 +58,19 @@ def prepare_milestone_level():
         for _, row in milestone_data.iterrows()
     ]
 
-# Create Gantt chart with enhanced styling
-def create_gantt_chart(data, title):
+# Create Gantt chart with explicit layout adjustments
+def create_gantt_chart(data, title, start_date, end_date):
     fig = ff.create_gantt(data, index_col="Resource", group_tasks=True,
                           show_colorbar=True, title=title, showgrid_x=True, showgrid_y=True)
     
+    # Set x-axis range to ensure all data is visible
+    fig.update_layout(
+        autosize=False,
+        width=1500,  # Explicit width
+        height=800,  # Explicit height
+        xaxis=dict(range=[start_date, end_date]),
+    )
+
     # Add current date as a vertical line
     current_date_str = current_date.strftime('%Y-%m-%d')
     fig.add_shape(
@@ -86,14 +95,19 @@ def create_gantt_chart(data, title):
     
     return fig
 
+# Get the overall timeline range
+min_date = tasks_data["Start Date"].min()
+max_date = tasks_data["End Date"].max()
+
 # Generate task-level and milestone-level Gantt charts
-task_chart = create_gantt_chart(prepare_task_level(), "Task-Level Gantt Chart")
-milestone_chart = create_gantt_chart(prepare_milestone_level(), "Milestone-Level Gantt Chart")
+task_chart = create_gantt_chart(prepare_task_level(), "Task-Level Gantt Chart", min_date, max_date)
+milestone_chart = create_gantt_chart(prepare_milestone_level(), "Milestone-Level Gantt Chart", min_date, max_date)
 
 # Save both charts as standalone HTML divs
 task_chart_html = task_chart.to_html(full_html=False, include_plotlyjs='cdn')
 milestone_chart_html = milestone_chart.to_html(full_html=False, include_plotlyjs=False)
 
+# Combine charts into a single HTML file
 with open("combined_gantt_chart.html", "w") as f:
     f.write(f"""
     <!DOCTYPE html>
@@ -102,19 +116,25 @@ with open("combined_gantt_chart.html", "w") as f:
         <title>Interactive Gantt Charts</title>
         <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
         <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+            }}
             .tab {{
-                overflow: hidden;
-                border: 1px solid #ccc;
+                display: flex;
+                border-bottom: 2px solid #ccc;
                 background-color: #f1f1f1;
             }}
             .tab button {{
                 background-color: inherit;
-                float: left;
                 border: none;
                 outline: none;
                 cursor: pointer;
                 padding: 14px 16px;
-                transition: 0.3s;
+                flex: 1;
+                font-size: 16px;
+                transition: background-color 0.3s;
             }}
             .tab button:hover {{
                 background-color: #ddd;
@@ -124,36 +144,37 @@ with open("combined_gantt_chart.html", "w") as f:
             }}
             .tabcontent {{
                 display: none;
-                padding: 6px 12px;
-                border: 1px solid #ccc;
-                border-top: none;
                 width: 100%;
-                height: 800px; /* Fixed height for better legibility */
-                overflow-y: auto;
+                height: calc(100vh - 60px); /* Full screen minus tab height */
+                padding: 0;
+                overflow: hidden;
             }}
-            .active-tab {{
-                display: block !important;
+            .tabcontent.active {{
+                display: block;
+            }}
+            .chart-container {{
+                width: 100%;
+                height: 100%;
             }}
         </style>
     </head>
     <body>
 
-    <h1>Interactive Gantt Charts</h1>
+    <h1 style="text-align: center; margin: 10px 0;">Interactive Gantt Charts</h1>
+
     <div class="tab">
         <button class="tablinks" onclick="openTab(event, 'TaskLevel')" id="defaultOpen">Task-Level Chart</button>
         <button class="tablinks" onclick="openTab(event, 'MilestoneLevel')">Milestone-Level Chart</button>
     </div>
 
-    <div id="TaskLevel" class="tabcontent">
-        <h2>Task-Level Gantt Chart</h2>
-        <div style="width: 100%; height: 100%;">
+    <div id="TaskLevel" class="tabcontent active">
+        <div class="chart-container">
             {task_chart_html}
         </div>
     </div>
 
     <div id="MilestoneLevel" class="tabcontent">
-        <h2>Milestone-Level Gantt Chart</h2>
-        <div style="width: 100%; height: 100%;">
+        <div class="chart-container">
             {milestone_chart_html}
         </div>
     </div>
@@ -163,13 +184,13 @@ with open("combined_gantt_chart.html", "w") as f:
             var i, tabcontent, tablinks;
             tabcontent = document.getElementsByClassName("tabcontent");
             for (i = 0; i < tabcontent.length; i++) {{
-                tabcontent[i].style.display = "none";
+                tabcontent[i].classList.remove("active");
             }}
             tablinks = document.getElementsByClassName("tablinks");
             for (i = 0; i < tablinks.length; i++) {{
                 tablinks[i].className = tablinks[i].className.replace(" active", "");
             }}
-            document.getElementById(tabName).style.display = "block";
+            document.getElementById(tabName).classList.add("active");
             evt.currentTarget.className += " active";
         }}
         document.getElementById("defaultOpen").click();
@@ -178,7 +199,3 @@ with open("combined_gantt_chart.html", "w") as f:
     </body>
     </html>
     """)
-
-
-
-print("Combined Gantt chart saved as 'combined_gantt_chart.html'")
