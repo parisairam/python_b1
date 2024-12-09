@@ -1,0 +1,184 @@
+import pandas as pd
+import plotly.figure_factory as ff
+from datetime import datetime
+
+import os
+# Load the data from Excel file
+current_directory = os.path.dirname(os.path.abspath(__file__))
+file_path = os.path.join(current_directory, "tasks_data 1.xlsx")
+tasks_data = pd.read_excel(file_path)
+tasks_data['Milestone'] = tasks_data['Milestone'].fillna(method='ffill')
+tasks_data['Status'] = tasks_data['Status'].fillna('Not Started')
+tasks_data['Milestone'] = pd.Categorical(tasks_data['Milestone'],
+                                         categories=["Development", "SIT", "QV", "Prod"],
+                                         ordered=True)
+tasks_data.sort_values(by=["Milestone", "Start Date"], inplace=True)
+
+current_date = datetime.now()
+tasks_data['Highlight'] = tasks_data.apply(
+    lambda row: 'Overdue' if row['Status'] != 'Completed' and row['End Date'] < current_date else row['Status'],
+    axis=1
+)
+
+# Color mapping for statuses
+status_colors = {
+    'Completed': 'green',
+    'Overdue': 'red',
+    'In-Progress': 'orange',
+    'Not Started': 'grey'
+}
+
+# Prepare task-level data
+def prepare_task_level():
+    return [
+        {
+            "Task": f"{row['Milestone']} - {row['Task']}",
+            "Start": row['Start Date'],
+            "Finish": row['End Date'],
+            "Resource": row['Highlight'],
+            "Color": status_colors[row['Highlight']]
+        }
+        for _, row in tasks_data.iterrows()
+    ]
+
+# Prepare milestone-level data
+def prepare_milestone_level():
+    milestone_data = tasks_data.groupby("Milestone").agg(
+        Start=("Start Date", "min"),
+        Finish=("End Date", "max")
+    ).reset_index()
+    return [
+        {
+            "Task": row['Milestone'],
+            "Start": row['Start'],
+            "Finish": row['Finish'],
+            "Resource": row['Milestone']
+        }
+        for _, row in milestone_data.iterrows()
+    ]
+
+# Create Gantt chart with enhanced styling
+def create_gantt_chart(data, title):
+    fig = ff.create_gantt(data, index_col="Resource", group_tasks=True,
+                          show_colorbar=True, title=title, showgrid_x=True, showgrid_y=True)
+    
+    # Add current date as a vertical line
+    current_date_str = current_date.strftime('%Y-%m-%d')
+    fig.add_shape(
+        type="line",
+        x0=current_date_str,
+        y0=0,
+        x1=current_date_str,
+        y1=1,
+        line=dict(color="red", width=2, dash="dash"),
+        xref="x",
+        yref="paper"
+    )
+    
+    # Add current date label
+    fig.add_annotation(
+        x=current_date_str,
+        y=1.05,
+        text=f"Today ({current_date_str})",
+        showarrow=False,
+        font=dict(color="red", size=12)
+    )
+    
+    return fig
+
+# Generate task-level and milestone-level Gantt charts
+task_chart = create_gantt_chart(prepare_task_level(), "Task-Level Gantt Chart")
+milestone_chart = create_gantt_chart(prepare_milestone_level(), "Milestone-Level Gantt Chart")
+
+# Save both charts as standalone HTML divs
+task_chart_html = task_chart.to_html(full_html=False, include_plotlyjs='cdn')
+milestone_chart_html = milestone_chart.to_html(full_html=False, include_plotlyjs=False)
+
+with open("combined_gantt_chart.html", "w") as f:
+    f.write(f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Interactive Gantt Charts</title>
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+        <style>
+            .tab {{
+                overflow: hidden;
+                border: 1px solid #ccc;
+                background-color: #f1f1f1;
+            }}
+            .tab button {{
+                background-color: inherit;
+                float: left;
+                border: none;
+                outline: none;
+                cursor: pointer;
+                padding: 14px 16px;
+                transition: 0.3s;
+            }}
+            .tab button:hover {{
+                background-color: #ddd;
+            }}
+            .tab button.active {{
+                background-color: #ccc;
+            }}
+            .tabcontent {{
+                display: none;
+                padding: 6px 12px;
+                border: 1px solid #ccc;
+                border-top: none;
+                width: 100%;
+                height: 800px; /* Fixed height for better legibility */
+                overflow-y: auto;
+            }}
+            .active-tab {{
+                display: block !important;
+            }}
+        </style>
+    </head>
+    <body>
+
+    <h1>Interactive Gantt Charts</h1>
+    <div class="tab">
+        <button class="tablinks" onclick="openTab(event, 'TaskLevel')" id="defaultOpen">Task-Level Chart</button>
+        <button class="tablinks" onclick="openTab(event, 'MilestoneLevel')">Milestone-Level Chart</button>
+    </div>
+
+    <div id="TaskLevel" class="tabcontent">
+        <h2>Task-Level Gantt Chart</h2>
+        <div style="width: 100%; height: 100%;">
+            {task_chart_html}
+        </div>
+    </div>
+
+    <div id="MilestoneLevel" class="tabcontent">
+        <h2>Milestone-Level Gantt Chart</h2>
+        <div style="width: 100%; height: 100%;">
+            {milestone_chart_html}
+        </div>
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {{
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {{
+                tabcontent[i].style.display = "none";
+            }}
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {{
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }}
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }}
+        document.getElementById("defaultOpen").click();
+    </script>
+
+    </body>
+    </html>
+    """)
+
+
+
+print("Combined Gantt chart saved as 'combined_gantt_chart.html'")
